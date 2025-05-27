@@ -189,7 +189,9 @@ class Kernel:
             self.ready_queue.remove(highest_priority)
             return highest_priority
         elif self.scheduling_algorithm == "RR":
-            return self.ready_queue.popleft()
+            selected = self.ready_queue.popleft()
+            self.time = 0
+            return selected
         return self.idle_pcb
 
     # This method is triggered when the currently running process requests to initialize a new semaphore.
@@ -206,6 +208,8 @@ class Kernel:
         else:
             sem["queue"].append(self.running)
             self.running = self.choose_next_process()
+            if self.scheduling_algorithm == "RR":
+                self.time = 0
         return self.running.pid
 
     # This method is triggered when the currently running process calls v() on an existing semaphore.
@@ -246,6 +250,8 @@ class Kernel:
         else:
             mtx["queue"].append(self.running)
             self.running = self.choose_next_process()
+            if self.scheduling_algorithm == "RR":
+                self.time = 0
         return self.running.pid
 
     # This method is triggered when the currently running process calls unlock() on an existing mutex.
