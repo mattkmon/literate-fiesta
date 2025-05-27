@@ -60,7 +60,7 @@ class Kernel:
                 self.running = self.ready_queue.popleft()
                 self.time_used = 0
 
-        elif self.scheduling_algorithm == "Multilevel":
+        elif self.scheduling_algorithm.startswith("Multilevel"):
             if process_type == "Foreground":
                 self.foreground_queue.append(new_pcb)
             else:
@@ -100,19 +100,27 @@ class Kernel:
         if self.scheduling_algorithm == "FCFS":
             if self.ready_queue:
                 return self.ready_queue.popleft()
+
         elif self.scheduling_algorithm == "Priority":
             if self.ready_queue:
                 highest_priority = min(self.ready_queue, key=lambda pcb: (pcb.priority, pcb.pid))
                 self.ready_queue.remove(highest_priority)
                 return highest_priority
+
         elif self.scheduling_algorithm == "RR":
             if self.ready_queue:
                 return self.ready_queue.popleft()
-        elif self.scheduling_algorithm == "Multilevel":
+
+        elif self.scheduling_algorithm.startswith("Multilevel"):
             if self.is_foreground_level and self.foreground_queue:
                 return self.foreground_queue.popleft()
-            elif not self.is_foreground_level and self.background_queue:
+            if not self.is_foreground_level and self.background_queue:
                 return self.background_queue.popleft()
+            if self.foreground_queue:
+                return self.foreground_queue.popleft()
+            if self.background_queue:
+                return self.background_queue.popleft()
+
         return self.idle_pcb
 
     def syscall_init_semaphore(self, semaphore_id: int, initial_value: int):
@@ -141,7 +149,7 @@ class Kernel:
                 self.running = self.ready_queue.popleft() if self.ready_queue else self.idle_pcb
                 self.time_used = 0
 
-        elif self.scheduling_algorithm == "Multilevel":
+        elif self.scheduling_algorithm.startswith("Multilevel"):
             self.level_time += 10
 
             if self.is_foreground_level:
@@ -168,5 +176,8 @@ class Kernel:
                     else:
                         self.running = self.idle_pcb
                     self.time_used = 0
+
+            if self.running == self.idle_pcb:
+                self.running = self.choose_next_process()
 
         return self.running.pid
