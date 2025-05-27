@@ -36,7 +36,7 @@ class Kernel:
         self.logger = logger
 
         self.quantum = 40
-        self.time_used = 0
+        self.time = 0
         self.semaphores = {}
         self.mutexes = {}
 
@@ -55,8 +55,7 @@ class Kernel:
 
         elif self.scheduling_algorithm == "Priority":
             if (self.running == self.idle_pcb or 
-                new_pcb.priority < self.running.priority or
-                (new_pcb.priority == self.running.priority and new_pcb.pid < self.running.pid)):
+                new_pcb.priority < self.running.priority or (new_pcb.priority == self.running.priority and new_pcb.pid < self.running.pid)):
 
                 if self.running != self.idle_pcb:
                     self.ready_queue.append(self.running)
@@ -68,7 +67,7 @@ class Kernel:
             self.ready_queue.append(new_pcb)
             if self.running == self.idle_pcb:
                 self.running = self.ready_queue.popleft()
-                self.time_used = 0
+                self.time = 0
 
         return self.running.pid
 
@@ -191,9 +190,9 @@ class Kernel:
     # DO NOT rename or delete this method. DO NOT change its arguments.
     def timer_interrupt(self) -> PID:
         if self.scheduling_algorithm == "RR":
-            self.time_used += 10
-            if self.time_used >= self.quantum and self.running != self.idle_pcb:
+            self.time += 10
+            if self.time >= self.quantum and self.running != self.idle_pcb:
                 self.ready_queue.append(self.running)
                 self.running = self.ready_queue.popleft() if self.ready_queue else self.idle_pcb
-                self.time_used = 0
+                self.time = 0
         return self.running.pid
