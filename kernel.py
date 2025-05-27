@@ -32,18 +32,19 @@ class Kernel:
     # Called before the simulation begins.
     # Use this method to initilize any variables you need throughout the simulation.
     # DO NOT rename or delete this method. DO NOT change its arguments.
-    def __init__(self, scheduling_algorithm: str):
+    def __init__(self, scheduling_algorithm: str, logger):
         self.scheduling_algorithm = scheduling_algorithm
         self.ready_queue = deque()
         self.waiting_queue = deque()
         self.idle_pcb = PCB(0) # idle process when the ready queue is empty
         self.running = self.idle_pcb
+        self.logger = logger
 
     # This method is triggered every time a new process has arrived.
     # new_process is this process's PID.
     # priority is the priority of new_process.
     # DO NOT rename or delete this method. DO NOT change its arguments.
-    def new_process_arrived(self, new_process: PID, priority: int) -> PID:
+    def new_process_arrived(self, new_process: PID, priority: int, process_type: str) -> PID:
         # create new PCB for the new process
         new_pcb = PCB(new_process, priority)
     
