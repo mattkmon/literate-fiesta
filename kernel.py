@@ -230,7 +230,15 @@ class Kernel:
                 else:
                     self.background_queue.append(proc)
             else:
-                self.ready_queue.append(proc)
+                if self.scheduling_algorithm == "Priority":
+                    if (proc.priority < self.running.priority or 
+                        (proc.priority == self.running.priority and proc.pid < self.running.pid)):
+                        self.ready_queue.append(self.running)
+                        self.running = proc
+                    else:
+                        self.ready_queue.append(proc)
+                else:
+                    self.ready_queue.append(proc)
         else:
             sem["value"] += 1
         return self.running.pid
@@ -274,7 +282,15 @@ class Kernel:
                     else:
                         self.background_queue.append(proc)
                 else:
-                    self.ready_queue.append(proc)
+                    if self.scheduling_algorithm == "Priority":
+                        if (proc.priority < self.running.priority or 
+                            (proc.priority == self.running.priority and proc.pid < self.running.pid)):
+                            self.ready_queue.append(self.running)
+                            self.running = proc
+                        else:
+                            self.ready_queue.append(proc)
+                    else:
+                        self.ready_queue.append(proc)                   
             else:
                 mtx["locked"] = False
                 mtx["owner"] = None
