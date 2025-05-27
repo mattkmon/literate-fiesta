@@ -40,6 +40,9 @@ class Kernel:
         self.running = self.idle_pcb
         self.logger = logger
 
+        self.quantum = 40
+        self.time_used = 0
+
     # This method is triggered every time a new process has arrived.
     # new_process is this process's PID.
     # priority is the priority of new_process.
