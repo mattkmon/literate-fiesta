@@ -1,7 +1,7 @@
-0.000ms : Foreground process 1 arrived with priority 32
+0.000ms : Foreground process 1 arrived with priority 32 requesting 40.0MB of memory
 0.000ms : Context switching to pid: 1
 
-0.230ms : Foreground process 2 arrived with priority 32
+0.230ms : Foreground process 2 arrived with priority 32 requesting 23.0MB of memory
 
 0.240ms : Context switching to pid: 2
 
@@ -17,7 +17,7 @@
 
 0.480ms : Context switching to pid: 2
 
-0.500ms : Foreground process 3 arrived with priority 32
+0.500ms : Foreground process 3 arrived with priority 32 requesting 22.0MB of memory
 
 0.520ms : Context switching to pid: 1
 

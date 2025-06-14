@@ -7,6 +7,41 @@ from collections import deque
 # PID is just an integer, but it is used to make it clear when a integer is expected to be a valid PID.
 PID = int
 
+# This class represents the MMU of the simulation.
+# The simulator will create an instance of this object and use it to translate memory accesses.
+# DO NOT modify the name of this class or remove it.
+class MMU:
+	# Called before the simulation begins (even before kernel __init__).
+	# Use this function to initialize any variables you need throughout the simulation.
+	# DO NOT rename or delete this method. DO NOT change its arguments.
+    def __init__(self, logger):
+        self.process_segments = {}  # imageine (v_start, p_start, offset)
+        self.logger = logger
+
+    # Translate the virtual address to its physical address.
+	# If it is not a valid address for the given process, return None which will cause a segmentation fault.
+	# If it is valid, translate the given virtual address to its physical address.
+	# DO NOT rename or delete this method. DO NOT change its arguments.
+    def translate(self, address: int, pid: PID) -> int | None:
+        if pid not in self.process_segments:
+            return None
+        
+        v_start, p_start, size = self.process_segments[pid]
+    
+        if address < v_start or address >= v_start + size:
+            return None
+        
+        offset = address - v_start
+        return p_start + offset
+    
+    def allocate_mem_segment(self, pid: PID, p_start: int, size: int):
+        v_start = 0x20000000
+        self.process_segments[pid] = (v_start, p_start, size)
+    
+    def deallocate_mem_segment(self, pid: PID):
+        if pid in self.process_segments:
+            del self.process_segments[pid]
+
 # This class represents the PCB of processes.
 # It is only here for your convinience and can be modified however you see fit.
 class PCB:
@@ -29,14 +64,19 @@ class Kernel:
     waiting_queue: deque[PCB]
     running: PCB
     idle_pcb: PCB
-
-    def __init__(self, scheduling_algorithm: str, logger):
+    
+    # Called before the simulation begins.
+    # Use this function to initilize any variables you need throughout the simulation.
+    # DO NOT rename or delete this method. DO NOT change its arguments.
+    def __init__(self, scheduling_algorithm: str, logger, mmu: "MMU", memory_size: int):
         self.scheduling_algorithm = scheduling_algorithm
         self.ready_queue = deque()
         self.waiting_queue = deque()
         self.idle_pcb = PCB(0)
         self.running = self.idle_pcb
         self.logger = logger
+        self.mmu = mmu
+        self.memory_size = memory_size
 
         self.quantum = 40
         self.time = 0
@@ -51,12 +91,67 @@ class Kernel:
         self.rr_time = 0
         self.rr_remaining_time = 0
         self.process_start_time = 0  # Track when current process started running
+        
+        self.kernel_reserved_bytes = 10485760
+        self.available_holes = [(self.kernel_reserved_bytes, memory_size - self.kernel_reserved_bytes)]
+        self.allocated_segments = {}
+
+    def _find_best_fit(self, memory_needed: int) -> int | None:
+        best_hole = None
+        best_index = -1
+        
+        for i, (start, size) in enumerate(self.available_holes):
+            if size >= memory_needed:
+                if best_hole is None or size < best_hole[1] or (size == best_hole[1] and start < best_hole[0]):
+                    best_hole = (start, size)
+                    best_index = i
+        
+        if best_hole is None:
+            return None
+        
+        start, size = best_hole
+        self.available_holes.pop(best_index)
+        
+        if size > memory_needed:
+            remaining_start = start + memory_needed
+            remaining_size = size - memory_needed
+            self.available_holes.append((remaining_start, remaining_size))
+            self.available_holes.sort(key=lambda x: x[0])
+        
+        return start
+
+    def _free_memory(self, pid: PID):
+        if pid not in self.allocated_segments:
+            return
+        
+        start, size = self.allocated_segments[pid]
+        del self.allocated_segments[pid]
+        
+        self.available_holes.append((start, size))
+        self.available_holes.sort(key=lambda x: x[0])
+        
+        merged_holes = []
+        for start, size in self.available_holes:
+            if merged_holes and merged_holes[-1][0] + merged_holes[-1][1] == start:
+                prev_start, prev_size = merged_holes[-1]
+                merged_holes[-1] = (prev_start, prev_size + size)
+            else:
+                merged_holes.append((start, size))
+        
+        self.available_holes = merged_holes
 
     # This method is triggered every time a new process has arrived.
     # new_process is this process's PID.
     # priority is the priority of new_process.
     # DO NOT rename or delete this method. DO NOT change its arguments.
-    def new_process_arrived(self, new_process: PID, priority: int, process_type: str) -> PID:
+    def new_process_arrived(self, new_process: PID, priority: int, process_type: str, memory_needed: int = 0) -> PID:
+        if memory_needed > 0:
+            p_start = self._find_best_fit(memory_needed)
+            if p_start is None: 
+                return -1 # no space
+            self.allocated_segments[new_process] = (p_start, memory_needed)
+            self.mmu.allocate_mem_segment(new_process, p_start, memory_needed)
+        
         new_pcb = PCB(new_process, priority, process_type)
 
         if self.scheduling_algorithm == "FCFS":
@@ -81,15 +176,6 @@ class Kernel:
                 self.running = self.ready_queue.popleft()
                 self.time = 0
                 
-            # video note: if a process switches between interrupts, system assumes it has run for 10ms even if it started to first timer interrupt, 
-            # switch -> interrupt = 10 ms
-            # 50 % of time is spent in Foreground Queue (RR), 50 % in Background Queue (FCFS)
-            # swap every 200ms commit.
-            # only swap if there is a process in the opposite queue, else commit 
-            # last edge case: when we switch off Foreground, pause the RR and do no reset it. 
-            # check the last task from RR 40ms Time quantam each, and see the remaining time
-            
-            # theres 2 queues: Foreground (RR) and Background (FCFS)
         elif self.scheduling_algorithm == "Multilevel":
             if process_type == "Foreground":
                 self.foreground_queue.append(new_pcb)
@@ -112,6 +198,9 @@ class Kernel:
     # This method is triggered every time the current process performs an exit syscall.
     # DO NOT rename or delete this method. DO NOT change its arguments.
     def syscall_exit(self) -> PID:
+        self._free_memory(self.running.pid)
+        self.mmu.deallocate_mem_segment(self.running.pid)
+        
         if self.scheduling_algorithm == "Multilevel":
             exit_time = self.rr_time
             self.running = self._choose_next_process_multilevel()
